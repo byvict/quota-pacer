@@ -384,3 +384,15 @@ func TestParseWhamUsage_BusinessWeeklyOnly(t *testing.T) {
 		})
 	}
 }
+
+func TestParseWhamUsage_ProMaxWeeklyOnly(t *testing.T) {
+	observedAt := time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)
+	payload := `{"plan_type":"promax","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1792685630},"secondary_window":null}}`
+	result := ParseWhamUsage([]byte(payload), observedAt)
+	if result.Status != StatusReady || result.PlanType != core.PlanTypePro || result.Window != WindowWeekly {
+		t.Fatalf("expected paid weekly Pro Max quota, got %+v", result)
+	}
+	if result.Remaining == nil || *result.Remaining != 100 || result.ResetAt == nil || result.ResetAt.Unix() != 1792685630 {
+		t.Fatalf("lost Pro Max quota/reset: %+v", result)
+	}
+}
