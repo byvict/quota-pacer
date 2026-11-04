@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -61,7 +62,7 @@ func ParseAvailableModels(raw []byte, observedAt time.Time, group ModelGroup) Pr
 	if err := decoder.Decode(&response); err != nil {
 		return failedResult(observedAt, group, "parse antigravity quota failed")
 	}
-	windows := collectGroupWindows(response, group)
+	windows := collectGroupWindows(response, group, observedAt)
 	selected, ok := pickEffectiveWindow(windows)
 	if !ok {
 		return failedResult(observedAt, group, "target model group quota unavailable")
@@ -102,14 +103,28 @@ func ParseAvailableModels(raw []byte, observedAt time.Time, group ModelGroup) Pr
 	return result
 }
 
-func collectGroupWindows(response availableModelsResponse, group ModelGroup) []candidateWindow {
+func collectGroupWindows(response availableModelsResponse, group ModelGroup, observedAt time.Time) []candidateWindow {
 	windows := make([]candidateWindow, 0)
-	for modelID, model := range response.Models {
+	modelIDs := make([]string, 0, len(response.Models))
+	for modelID := range response.Models {
+		modelIDs = append(modelIDs, modelID)
+	}
+	slices.Sort(modelIDs)
+	for _, modelID := range modelIDs {
+		model := response.Models[modelID]
 		if !modelBelongsToGroup(modelID, model.ModelProvider, group) {
 			continue
 		}
 		if len(model.QuotaInfo.Windows) == 0 {
-			if window, ok := quotaFieldsToWindow(model.QuotaInfo.RemainingFraction, model.QuotaInfo.ResetTime, WindowUnknown); ok {
+			wType := WindowUnknown
+			if resetAt, ok := parseAnyTime(model.QuotaInfo.ResetTime); ok && resetAt != nil {
+				if resetAt.Sub(observedAt) > 24*time.Hour {
+					wType = WindowWeekly
+				} else {
+					wType = WindowFiveHour
+				}
+			}
+			if window, ok := quotaFieldsToWindow(model.QuotaInfo.RemainingFraction, model.QuotaInfo.ResetTime, wType); ok {
 				windows = append(windows, window)
 			}
 			continue

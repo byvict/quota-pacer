@@ -26,6 +26,15 @@ var retrieveUserQuotaSummaryURLs = []string{
 	"https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 }
 
+// FetchAvailableModelsURL 是 CPA 配额页使用的 Antigravity 可用模型查询端点。
+const FetchAvailableModelsURL = "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
+
+var fetchAvailableModelsURLs = []string{
+	FetchAvailableModelsURL,
+	"https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:fetchAvailableModels",
+	"https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+}
+
 // WindowType 标识 Antigravity quota 响应中选中的额度窗口类型。
 type WindowType string
 

@@ -29,11 +29,14 @@ func NewProber(hostAPI httpDoer, clockSource clock) Prober {
 	return Prober{host: hostAPI, clock: clockSource}
 }
 
-// Probe 请求 Antigravity quota summary 并返回目标模型组 quota 结果。
+// Probe 请求 Antigravity quota 并返回目标模型组 quota 结果。
 func (p Prober) Probe(ctx context.Context, request ProbeRequest) ProbeResult {
 	observedAt := p.clock.Now().UTC()
-	var lastStatus int
-	for _, url := range retrieveUserQuotaSummaryURLs {
+	var (
+		lastStatus int
+		lastErr    string
+	)
+	for _, url := range probeURLs(request.ModelGroup) {
 		response, err := p.host.HTTPDo(ctx, host.HTTPRequest{AuthIndex: request.AuthIndex, Method: http.MethodPost, URL: url, Headers: probeHeaders(request), Body: probeBody(request)})
 		if err != nil {
 			return failedProbe(request, observedAt, "host http do failed")
@@ -47,8 +50,32 @@ func (p Prober) Probe(ctx context.Context, request ProbeRequest) ProbeResult {
 			result.AuthIndex = request.AuthIndex
 			return result
 		}
+		if result.Error != "" {
+			lastErr = result.Error
+		}
 	}
-	return failedProbe(request, observedAt, fmt.Sprintf("retrieve quota summary status %d", lastStatus))
+	if lastErr != "" {
+		return failedProbe(request, observedAt, lastErr)
+	}
+	if lastStatus != 0 {
+		if lastStatus == http.StatusOK {
+			return failedProbe(request, observedAt, "target model group quota unavailable")
+		}
+		return failedProbe(request, observedAt, fmt.Sprintf("retrieve quota summary status %d", lastStatus))
+	}
+	return failedProbe(request, observedAt, "probe failed")
+}
+
+func probeURLs(group ModelGroup) []string {
+	urls := make([]string, 0, len(fetchAvailableModelsURLs)+len(retrieveUserQuotaSummaryURLs))
+	if group == ModelGroupClaudeGPT {
+		urls = append(urls, retrieveUserQuotaSummaryURLs...)
+		urls = append(urls, fetchAvailableModelsURLs...)
+	} else {
+		urls = append(urls, fetchAvailableModelsURLs...)
+		urls = append(urls, retrieveUserQuotaSummaryURLs...)
+	}
+	return urls
 }
 
 func probeBody(request ProbeRequest) []byte {
