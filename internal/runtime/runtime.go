@@ -290,7 +290,7 @@ func (r *Runtime) runAuto(ctx context.Context, scope config.ProviderScope, provi
 	}
 	runErr := r.runAutoParallelProviders(taskCtx, TaskRequest{Config: cfg, Trigger: TriggerAutoApply})
 	if runErr != nil {
-		if !errors.Is(runErr, context.Canceled) && !errors.Is(runErr, context.DeadlineExceeded) {
+		if taskCtx.Err() == nil || !errors.Is(runErr, context.Canceled) {
 			r.mu.Lock()
 			r.lastAutoApplyAttemptAt = r.clock.Now().UTC()
 			r.mu.Unlock()

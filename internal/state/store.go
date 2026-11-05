@@ -154,34 +154,49 @@ type document struct {
 	Entries map[string]Entry `json:"entries"`
 }
 
+// cachePathMu serializes filesystem reads/quarantines and atomic renames within
+// this process so a concurrent Load quarantine never renames a freshly published
+// SaveAtomic file.
+var cachePathMu sync.Mutex
+
+func quarantineCorruptCache(path string, reason error) {
+	corruptPath := fmt.Sprintf("%s.corrupt-%d", path, time.Now().UTC().UnixNano())
+	if renameErr := os.Rename(path, corruptPath); renameErr != nil {
+		if !errors.Is(renameErr, os.ErrNotExist) {
+			log.Printf("quota-pacer: warning: unreadable state cache %s (%v); rename to %s failed: %v; continuing with empty state", path, reason, corruptPath, renameErr)
+		} else {
+			log.Printf("quota-pacer: warning: unreadable state cache %s (%v) already moved by another worker; continuing with empty state", path, reason)
+		}
+	} else {
+		log.Printf("quota-pacer: warning: renamed unreadable state cache %s to %s (%v); continuing with empty state", path, corruptPath, reason)
+	}
+}
+
 // Load 从 path 读取缓存；文件不存在时返回空 Store。
 func Load(ctx context.Context, path string) (*Store, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("load state context: %w", err)
 	}
 	store := &Store{path: path, entries: map[string]Entry{}}
+	if strings.TrimSpace(path) == "" {
+		return store, nil
+	}
+	cachePathMu.Lock()
+	defer cachePathMu.Unlock()
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return store, nil
 		}
-		return nil, fmt.Errorf("read state cache %s: %w", path, err)
+		quarantineCorruptCache(path, err)
+		return store, nil
 	}
 	if len(strings.TrimSpace(string(raw))) == 0 {
 		return store, nil
 	}
 	var doc document
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		corruptPath := fmt.Sprintf("%s.corrupt-%d", path, time.Now().UTC().UnixNano())
-		if renameErr := os.Rename(path, corruptPath); renameErr != nil {
-			if !errors.Is(renameErr, os.ErrNotExist) {
-				log.Printf("quota-pacer: warning: corrupt state cache %s (%v); rename to %s failed: %v; continuing with empty state", path, err, corruptPath, renameErr)
-			} else {
-				log.Printf("quota-pacer: warning: corrupt state cache %s (%v) already moved by another worker; continuing with empty state", path, err)
-			}
-		} else {
-			log.Printf("quota-pacer: warning: renamed corrupt state cache %s to %s (%v); continuing with empty state", path, corruptPath, err)
-		}
+		quarantineCorruptCache(path, errors.Join(ErrCorruptCache, err))
 		return store, nil
 	}
 	if doc.Entries != nil {
@@ -225,7 +240,10 @@ func (s *Store) SaveAtomic(ctx context.Context) (err error) {
 	if err = tmpFile.Close(); err != nil {
 		return fmt.Errorf("close state cache temp: %w", err)
 	}
-	if err = os.Rename(tmpPath, path); err != nil {
+	cachePathMu.Lock()
+	err = os.Rename(tmpPath, path)
+	cachePathMu.Unlock()
+	if err != nil {
 		return fmt.Errorf("rename state cache temp: %w", err)
 	}
 	return nil

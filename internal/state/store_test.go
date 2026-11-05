@@ -630,4 +630,64 @@ func TestStore_LoadCorruptCacheRecoversAndConcurrentSafe(t *testing.T) {
 	if len(corruptBackups) != 1 {
 		t.Fatalf("expected exactly 1 corrupt backup file, got %v", corruptBackups)
 	}
+	backupBytes, err := os.ReadFile(filepath.Join(tempDir, corruptBackups[0]))
+	if err != nil {
+		t.Fatalf("ReadFile corrupt backup failed: %v", err)
+	}
+	if string(backupBytes) != string(corruptContent) {
+		t.Errorf("corrupt backup content mismatch: got %q, want %q", backupBytes, corruptContent)
+	}
+
+	// Interleaved Load on corrupt file and SaveAtomic must never quarantine a freshly saved valid cache.
+	if err := os.WriteFile(cachePath, corruptContent, 0o600); err != nil {
+		t.Fatalf("WriteFile second corrupt cache failed: %v", err)
+	}
+	writerStore, err := Load(ctx, "")
+	if err != nil {
+		t.Fatalf("Load empty writerStore failed: %v", err)
+	}
+	writerStore.path = cachePath
+	now := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+	if err := writerStore.MarkProbeSuccess(ctx, ProbeSuccess{
+		AuthIndex:   "auth-interleaved",
+		Provider:    core.ProviderClaude,
+		ObservedAt:  now,
+		ResetAt:     now.Add(time.Hour),
+		Remaining:   42,
+		Source:      SourceFreshProbe,
+		NextProbeAt: now.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("MarkProbeSuccess failed: %v", err)
+	}
+	for round := 0; round < 20; round++ {
+		_ = os.WriteFile(cachePath, corruptContent, 0o600)
+		var iwg sync.WaitGroup
+		iwg.Add(2)
+		go func() {
+			defer iwg.Done()
+			_, _ = Load(ctx, cachePath)
+		}()
+		go func() {
+			defer iwg.Done()
+			_ = writerStore.SaveAtomic(ctx)
+		}()
+		iwg.Wait()
+		if err := writerStore.SaveAtomic(ctx); err != nil {
+			t.Fatalf("SaveAtomic after interleaved round %d failed: %v", round, err)
+		}
+		rechecked, err := Load(ctx, cachePath)
+		if err != nil {
+			t.Fatalf("Load after interleaved round %d failed: %v", round, err)
+		}
+		if _, ok := rechecked.GetEntry("auth-interleaved", ""); !ok {
+			t.Fatalf("expected auth-interleaved entry after round %d", round)
+		}
+	}
+	info, err := os.Stat(cachePath)
+	if err != nil {
+		t.Fatalf("Stat saved cache failed: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("expected cache file mode 0600, got %04o", perm)
+	}
 }

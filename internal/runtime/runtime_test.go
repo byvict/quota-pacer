@@ -93,40 +93,62 @@ func TestRuntime_HandleJSON(t *testing.T) {
 	}
 }
 
-type failingHostCallbacks struct {
+type dynamicHostCallbacks struct {
 	mockHostCallbacks
+	err error
 }
 
-func (f failingHostCallbacks) ListAuthFiles(ctx context.Context) ([]host.AuthFile, error) {
-	return nil, fmt.Errorf("simulated host failure")
+func (d *dynamicHostCallbacks) ListAuthFiles(ctx context.Context) ([]host.AuthFile, error) {
+	if d.err != nil {
+		return nil, d.err
+	}
+	return d.mockHostCallbacks.ListAuthFiles(ctx)
+}
+
+type mutableClock struct {
+	now time.Time
+}
+
+func (c *mutableClock) Now() time.Time {
+	return c.now
 }
 
 func TestRuntime_AutoApplyErrorWaitsConfiguredInterval(t *testing.T) {
-	t0 := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+	clock := &mutableClock{now: time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)}
+	hostStub := &dynamicHostCallbacks{err: fmt.Errorf("simulated host failure")}
 	rt := New(Options{
-		Host:  failingHostCallbacks{},
-		Clock: fixedClock{now: t0},
+		Host:  hostStub,
+		Clock: clock,
 	})
 	defer rt.Shutdown(context.Background())
 
-	interval := 15 * time.Minute
+	interval := 20 * time.Minute
 	if wait := rt.nextAutoApplyWait(interval); wait != time.Second {
 		t.Fatalf("before any auto apply attempt, expected wait=1s, got %v", wait)
 	}
 
-	err := rt.AutoApply(context.Background())
-	if err == nil {
+	// 1. Operational failure waits full configured interval and keeps lastAutoApplyAt zero.
+	if err := rt.AutoApply(context.Background()); err == nil {
 		t.Fatalf("expected AutoApply to return an error on host failure")
 	}
-
 	rt.mu.Lock()
 	lastSuccess := rt.lastAutoApplyAt
 	rt.mu.Unlock()
 	if !lastSuccess.IsZero() {
 		t.Errorf("expected lastAutoApplyAt to remain zero after failed run, got %v", lastSuccess)
 	}
-
 	if wait := rt.nextAutoApplyWait(interval); wait != interval {
 		t.Fatalf("after failed auto apply, expected nextAutoApplyWait=%v, got %v", interval, wait)
+	}
+
+	// 2. Operational DeadlineExceeded also waits configured interval.
+	clock.now = clock.now.Add(interval)
+	hostStub.err = context.DeadlineExceeded
+	if err := rt.AutoApply(context.Background()); err == nil {
+		t.Fatalf("expected AutoApply to return error on deadline exceeded")
+	}
+	clock.now = clock.now.Add(5 * time.Minute)
+	if wait := rt.nextAutoApplyWait(interval); wait != 15*time.Minute {
+		t.Fatalf("5m after deadline failure on 20m interval, expected wait=15m, got %v", wait)
 	}
 }
