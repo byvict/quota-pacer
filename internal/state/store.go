@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,7 +172,17 @@ func Load(ctx context.Context, path string) (*Store, error) {
 	}
 	var doc document
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return store, fmt.Errorf("decode state cache %s: %w", path, errors.Join(ErrCorruptCache, err))
+		corruptPath := fmt.Sprintf("%s.corrupt-%d", path, time.Now().UTC().UnixNano())
+		if renameErr := os.Rename(path, corruptPath); renameErr != nil {
+			if !errors.Is(renameErr, os.ErrNotExist) {
+				log.Printf("quota-pacer: warning: corrupt state cache %s (%v); rename to %s failed: %v; continuing with empty state", path, err, corruptPath, renameErr)
+			} else {
+				log.Printf("quota-pacer: warning: corrupt state cache %s (%v) already moved by another worker; continuing with empty state", path, err)
+			}
+		} else {
+			log.Printf("quota-pacer: warning: renamed corrupt state cache %s to %s (%v); continuing with empty state", path, corruptPath, err)
+		}
+		return store, nil
 	}
 	if doc.Entries != nil {
 		store.entries = doc.Entries
@@ -195,14 +206,24 @@ func (s *Store) SaveAtomic(ctx context.Context) (err error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create state cache dir %s: %w", dir, err)
 	}
-	tmpPath := filepath.Join(dir, filepath.Base(path)+".tmp")
+	tmpFile, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create state cache temp: %w", err)
+	}
+	tmpPath := tmpFile.Name()
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, os.Remove(tmpPath))
+			if rmErr := os.Remove(tmpPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+				err = errors.Join(err, rmErr)
+			}
 		}
 	}()
-	if err = os.WriteFile(tmpPath, data, 0o600); err != nil {
+	if _, err = tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
 		return fmt.Errorf("write state cache temp: %w", err)
+	}
+	if err = tmpFile.Close(); err != nil {
+		return fmt.Errorf("close state cache temp: %w", err)
 	}
 	if err = os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("rename state cache temp: %w", err)

@@ -2,8 +2,11 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -499,5 +502,132 @@ func TestStore_ValidEntry(t *testing.T) {
 	// Past resetAt -> false
 	if _, ok := store.ValidEntry("auth-1", "", resetAt.Add(time.Minute), ProbePolicy{TTL: 15 * time.Minute}); ok {
 		t.Errorf("expected ValidEntry=false past resetAt")
+	}
+}
+
+func TestStore_ConcurrentSaveAndCorruptRecovery(t *testing.T) {
+	tempDir := t.TempDir()
+	cachePath := filepath.Join(tempDir, "refresh-cache.json")
+	ctx := context.Background()
+	now := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+
+	const workers = 16
+	const iterations = 25
+	stores := make([]*Store, workers)
+	for i := 0; i < workers; i++ {
+		s, err := Load(ctx, cachePath)
+		if err != nil {
+			t.Fatalf("Load[%d] failed: %v", i, err)
+		}
+		// Give each Store a dramatically different payload size so concurrent
+		// writes of different lengths race on any shared temporary file.
+		entryCount := 1
+		if i%2 == 0 {
+			entryCount = 40 + i*5
+		}
+		for j := 0; j < entryCount; j++ {
+			if err := s.MarkProbeSuccess(ctx, ProbeSuccess{
+				AuthIndex:   fmt.Sprintf("auth-worker-%d-entry-%d-%s", i, j, strings.Repeat("x", (i+1)*32)),
+				Provider:    core.ProviderClaude,
+				ObservedAt:  now,
+				ResetAt:     now.Add(5 * time.Hour),
+				Remaining:   50,
+				Source:      SourceFreshProbe,
+				NextProbeAt: now.Add(time.Hour),
+			}); err != nil {
+				t.Fatalf("MarkProbeSuccess failed: %v", err)
+			}
+		}
+		stores[i] = s
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, workers*iterations)
+	for i := 0; i < workers; i++ {
+		s := stores[i]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for k := 0; k < iterations; k++ {
+				if err := s.SaveAtomic(ctx); err != nil {
+					errCh <- err
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatalf("concurrent SaveAtomic failed: %v", err)
+	}
+
+	loaded, err := Load(ctx, cachePath)
+	if err != nil {
+		t.Fatalf("Load after concurrent SaveAtomic failed: %v", err)
+	}
+	if len(loaded.entries) == 0 {
+		t.Fatalf("expected non-empty entries after concurrent SaveAtomic")
+	}
+
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Fatalf("ReadDir failed: %v", err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp") {
+			t.Errorf("unexpected leftover temp file: %s", e.Name())
+		}
+	}
+}
+
+func TestStore_LoadCorruptCacheRecoversAndConcurrentSafe(t *testing.T) {
+	tempDir := t.TempDir()
+	cachePath := filepath.Join(tempDir, "refresh-cache.json")
+	ctx := context.Background()
+
+	corruptContent := []byte(`{"entries":{"a":{"remaining":10}}}"trailing-garbage"}`)
+	if err := os.WriteFile(cachePath, corruptContent, 0o600); err != nil {
+		t.Fatalf("WriteFile corrupt cache failed: %v", err)
+	}
+
+	const readers = 8
+	var wg sync.WaitGroup
+	stores := make([]*Store, readers)
+	errs := make([]error, readers)
+	for i := 0; i < readers; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			stores[i], errs[i] = Load(ctx, cachePath)
+		}()
+	}
+	wg.Wait()
+
+	for i := 0; i < readers; i++ {
+		if errs[i] != nil {
+			t.Fatalf("Load[%d] on corrupt cache returned error: %v", i, errs[i])
+		}
+		if stores[i] == nil || len(stores[i].entries) != 0 {
+			t.Fatalf("Load[%d] expected empty store, got %+v", i, stores[i])
+		}
+	}
+
+	if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
+		t.Errorf("expected original corrupt cache %s to be renamed away, stat err=%v", cachePath, err)
+	}
+
+	dirEntries, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Fatalf("ReadDir failed: %v", err)
+	}
+	var corruptBackups []string
+	for _, e := range dirEntries {
+		if strings.HasPrefix(e.Name(), "refresh-cache.json.corrupt-") {
+			corruptBackups = append(corruptBackups, e.Name())
+		}
+	}
+	if len(corruptBackups) != 1 {
+		t.Fatalf("expected exactly 1 corrupt backup file, got %v", corruptBackups)
 	}
 }

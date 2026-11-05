@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -89,5 +90,43 @@ func TestRuntime_HandleJSON(t *testing.T) {
 	shutdownResp := rt.Handle(context.Background(), "plugin.shutdown", nil)
 	if len(shutdownResp) == 0 {
 		t.Fatalf("expected non-empty shutdown response")
+	}
+}
+
+type failingHostCallbacks struct {
+	mockHostCallbacks
+}
+
+func (f failingHostCallbacks) ListAuthFiles(ctx context.Context) ([]host.AuthFile, error) {
+	return nil, fmt.Errorf("simulated host failure")
+}
+
+func TestRuntime_AutoApplyErrorWaitsConfiguredInterval(t *testing.T) {
+	t0 := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+	rt := New(Options{
+		Host:  failingHostCallbacks{},
+		Clock: fixedClock{now: t0},
+	})
+	defer rt.Shutdown(context.Background())
+
+	interval := 15 * time.Minute
+	if wait := rt.nextAutoApplyWait(interval); wait != time.Second {
+		t.Fatalf("before any auto apply attempt, expected wait=1s, got %v", wait)
+	}
+
+	err := rt.AutoApply(context.Background())
+	if err == nil {
+		t.Fatalf("expected AutoApply to return an error on host failure")
+	}
+
+	rt.mu.Lock()
+	lastSuccess := rt.lastAutoApplyAt
+	rt.mu.Unlock()
+	if !lastSuccess.IsZero() {
+		t.Errorf("expected lastAutoApplyAt to remain zero after failed run, got %v", lastSuccess)
+	}
+
+	if wait := rt.nextAutoApplyWait(interval); wait != interval {
+		t.Fatalf("after failed auto apply, expected nextAutoApplyWait=%v, got %v", interval, wait)
 	}
 }

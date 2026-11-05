@@ -17,23 +17,24 @@ const maxRunHistory = 5
 
 // Runtime 持有 CPA 插件生命周期、配置、ticker 和 single-flight 状态。
 type Runtime struct {
-	mu              sync.Mutex
-	runMu           sync.Mutex
-	tickerFactory   TickerFactory
-	runner          TaskRunner
-	rootCtx         context.Context
-	cancel          context.CancelFunc
-	cfg             config.Config
-	hostCallbacks   host.HostCallbacks
-	clock           Clock
-	sleeper         Sleeper
-	management      *management.Handler
-	latestResult    apply.Result
-	latestAudit     string
-	runHistory      []RunHistoryEntry
-	lastAutoApplyAt time.Time
-	worker          *tickerWorker
-	shutdown        bool
+	mu                     sync.Mutex
+	runMu                  sync.Mutex
+	tickerFactory          TickerFactory
+	runner                 TaskRunner
+	rootCtx                context.Context
+	cancel                 context.CancelFunc
+	cfg                    config.Config
+	hostCallbacks          host.HostCallbacks
+	clock                  Clock
+	sleeper                Sleeper
+	management             *management.Handler
+	latestResult           apply.Result
+	latestAudit            string
+	runHistory             []RunHistoryEntry
+	lastAutoApplyAt        time.Time
+	lastAutoApplyAttemptAt time.Time
+	worker                 *tickerWorker
+	shutdown               bool
 }
 
 // New 创建未注册的 runtime；ticker 会在 register/reconfigure 成功后启动。
@@ -270,7 +271,10 @@ func (r *Runtime) runAuto(ctx context.Context, scope config.ProviderScope, provi
 	defer cleanup()
 	now := r.clock.Now().UTC()
 	r.mu.Lock()
-	last := r.lastAutoApplyAt
+	last := r.lastAutoApplyAttemptAt
+	if r.lastAutoApplyAt.After(last) {
+		last = r.lastAutoApplyAt
+	}
 	interval := cfg.Interval
 	if interval > 0 && !last.IsZero() && now.Sub(last) < interval {
 		r.mu.Unlock()
@@ -286,8 +290,10 @@ func (r *Runtime) runAuto(ctx context.Context, scope config.ProviderScope, provi
 	}
 	runErr := r.runAutoParallelProviders(taskCtx, TaskRequest{Config: cfg, Trigger: TriggerAutoApply})
 	if runErr != nil {
-		// 取消/失败都不推进 last：否则会出现「无 history 却进入 15m 冷却」。
 		if !errors.Is(runErr, context.Canceled) && !errors.Is(runErr, context.DeadlineExceeded) {
+			r.mu.Lock()
+			r.lastAutoApplyAttemptAt = r.clock.Now().UTC()
+			r.mu.Unlock()
 			r.snapshotRunEntry(apply.Result{}, runErr.Error(), RunHistoryEntry{
 				Kind:    "auto_apply",
 				Trigger: string(TriggerAutoApply),
@@ -296,20 +302,25 @@ func (r *Runtime) runAuto(ctx context.Context, scope config.ProviderScope, provi
 		}
 		return fmt.Errorf("run %s: %w", TriggerAutoApply, runErr)
 	}
-	// 仅成功路径推进 last（snapshot 已在 runAutoParallelProviders 内完成）。
+	// 仅成功路径推进 lastAutoApplyAt（snapshot 已在 runAutoParallelProviders 内完成）。
+	doneAt := r.clock.Now().UTC()
 	r.mu.Lock()
-	r.lastAutoApplyAt = r.clock.Now().UTC()
+	r.lastAutoApplyAt = doneAt
+	r.lastAutoApplyAttemptAt = doneAt
 	r.mu.Unlock()
 	return nil
 }
 
-// nextAutoApplyWait 返回距离下一次允许自动排序的等待时长（从 lastAutoApplyAt 起算 interval）。
+// nextAutoApplyWait 返回距离下一次允许自动排序的等待时长（从最近一次完成或失败轮次起算 interval）。
 func (r *Runtime) nextAutoApplyWait(interval time.Duration) time.Duration {
 	if interval <= 0 {
 		interval = 15 * time.Minute
 	}
 	r.mu.Lock()
-	last := r.lastAutoApplyAt
+	last := r.lastAutoApplyAttemptAt
+	if r.lastAutoApplyAt.After(last) {
+		last = r.lastAutoApplyAt
+	}
 	r.mu.Unlock()
 	if last.IsZero() {
 		// 尚未跑过：短等待后重试（死锁恢复 / 启动竞态），不干等整个 interval。
