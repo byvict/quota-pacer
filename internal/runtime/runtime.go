@@ -271,10 +271,7 @@ func (r *Runtime) runAuto(ctx context.Context, scope config.ProviderScope, provi
 	defer cleanup()
 	now := r.clock.Now().UTC()
 	r.mu.Lock()
-	last := r.lastAutoApplyAttemptAt
-	if r.lastAutoApplyAt.After(last) {
-		last = r.lastAutoApplyAt
-	}
+	last := r.lastAutoApplyAt
 	interval := cfg.Interval
 	if interval > 0 && !last.IsZero() && now.Sub(last) < interval {
 		r.mu.Unlock()

@@ -188,8 +188,7 @@ func Load(ctx context.Context, path string) (*Store, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return store, nil
 		}
-		quarantineCorruptCache(path, err)
-		return store, nil
+		return nil, fmt.Errorf("read state cache %s: %w", path, err)
 	}
 	if len(strings.TrimSpace(string(raw))) == 0 {
 		return store, nil
