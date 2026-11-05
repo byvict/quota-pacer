@@ -4,120 +4,197 @@ package management
 // 浏览器侧仅：Management Key 验证、只读拉取配置/概览、调用 management 路径手动 dry-run/apply。
 // 禁止配置表单与保存；自动规则仅通过宿主 config.yaml / plugins.configs 修改。
 const StatusHTML = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en-US">
 <head>
     <meta charset="UTF-8">
-    <title>凭证优先级管理</title>
+    <meta name="color-scheme" content="light dark">
+    <title>Quota Pacer</title>
     <style>
-        :root { color-scheme: light; --text:#111827; --muted:#6b7280; --line:#e5e7eb; --panel:#fff; --soft:#f8fafc; --blue:#2563eb; --danger:#b91c1c; --green:#16a34a; }
+        :root {
+            color-scheme: light;
+            --bg: #faf9f5;
+            --panel: #ffffff;
+            --soft: #f2f0eb;
+            --soft-hover: #e9e6df;
+            --text: #2d2a26;
+            --muted: #6d6760;
+            --text-subtle: #9c958d;
+            --line: #e5e2db;
+            --line-strong: #d3cfc7;
+            --primary: #2d2a26;
+            --on-primary: #ffffff;
+            --blue: #2563eb;
+            --badge-bg: #ebe7df;
+            --badge-text: #2d2a26;
+            --version-bg: rgba(37, 99, 235, 0.1);
+            --version-text: #1d4ed8;
+            --danger: #c4493a;
+            --danger-soft: rgba(196, 73, 58, 0.1);
+            --danger-border: rgba(196, 73, 58, 0.28);
+            --warn-text: #b26a12;
+            --warn-soft: rgba(178, 106, 18, 0.1);
+            --warn-border: rgba(178, 106, 18, 0.28);
+            --green: #0f9f6e;
+            --green-soft: rgba(15, 159, 110, 0.12);
+            --shadow-sm: 0 1px 2px rgba(30, 25, 20, 0.05);
+            --shadow-pop: 0 10px 28px rgba(30, 25, 20, 0.12);
+        }
+        :root[data-theme="white"] {
+            color-scheme: light;
+            --bg: #ffffff;
+            --panel: #ffffff;
+            --soft: #f6f6f6;
+            --soft-hover: #ededeb;
+            --line: #e5e5e5;
+            --line-strong: #d6d6d3;
+            --badge-bg: #f0f0ee;
+        }
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --bg: #151412;
+            --panel: #1d1b18;
+            --soft: #262320;
+            --soft-hover: #2e2a26;
+            --text: #f6f4f1;
+            --muted: #c9c3bb;
+            --text-subtle: #9c958d;
+            --line: #3a3530;
+            --line-strong: #4a453f;
+            --primary: #f3f1ed;
+            --on-primary: #151412;
+            --blue: #60a5fa;
+            --badge-bg: #2e2a26;
+            --badge-text: #e6e1da;
+            --version-bg: rgba(96, 165, 250, 0.15);
+            --version-text: #93c5fd;
+            --danger: #ec6f5f;
+            --danger-soft: rgba(236, 111, 95, 0.14);
+            --danger-border: rgba(236, 111, 95, 0.35);
+            --warn-text: #e0a04a;
+            --warn-soft: rgba(224, 160, 74, 0.14);
+            --warn-border: rgba(224, 160, 74, 0.35);
+            --green: #34c38f;
+            --green-soft: rgba(52, 195, 143, 0.14);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+            --shadow-pop: 0 14px 32px rgba(0, 0, 0, 0.45);
+        }
         * { box-sizing:border-box; }
-        body { margin:0; padding:24px; background:#f6f7fb; color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
-        .container { width:100%; max-width:1180px; margin:0 auto; background:var(--panel); border:1px solid rgba(17,24,39,.06); border-radius:18px; padding:32px; box-shadow:0 18px 48px rgba(15,23,42,.07); }
-        .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; }
-        .topbar-actions { display:flex; align-items:flex-start; justify-content:flex-end; gap:12px; flex:1; }
-        h1 { margin:0; font-size:28px; letter-spacing:-.03em; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        html, body { min-height:100%; background:var(--bg); }
+        body { margin:0; padding:24px 28px 40px; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; font-size:14px; -webkit-font-smoothing:antialiased; transition:background-color .18s ease,color .18s ease; }
+        .container { width:100%; max-width:1180px; margin:0 auto; background:transparent; border:0; border-radius:0; padding:0; box-shadow:none; }
+        .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; padding-right:148px; }
+        .topbar-actions { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex:1; }
+        h1 { margin:0; font-size:22px; font-weight:650; letter-spacing:-.02em; display:flex; align-items:center; gap:10px; flex-wrap:wrap; color:var(--text); }
         h1 .title-text { white-space:nowrap; }
-        .version-badge { display:inline-flex; align-items:center; min-height:24px; border-radius:999px; padding:3px 9px; background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:750; }
-        h2 { margin:0 0 16px; font-size:18px; }
-        p { margin:0; color:var(--muted); line-height:1.65; }
-        label { display:block; margin:0 0 8px; font-size:13px; font-weight:650; color:#374151; }
-        input, select { width:100%; min-height:44px; border:1px solid #d1d5db; border-radius:12px; padding:10px 12px; font:inherit; background:#fff; color:var(--text); }
-        button { min-height:42px; border-radius:12px; border:1px solid transparent; padding:10px 16px; font:inherit; font-weight:650; cursor:pointer; }
-        .btn-primary { background:var(--blue); color:#fff; }
-        .btn-secondary { background:#fff; border-color:#d1d5db; color:#374151; }
-        .btn-danger { background:#fef2f2; color:var(--danger); border-color:#fecaca; }
-        .section { margin-top:28px; }
-        .card { background:var(--soft); border:1px solid rgba(17,24,39,.05); border-radius:16px; padding:24px; }
+        .version-badge { display:inline-flex; align-items:center; min-height:22px; border-radius:6px; padding:2px 8px; background:var(--version-bg); color:var(--version-text); font-size:11px; font-weight:650; font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; }
+        h2 { margin:0 0 12px; font-size:15px; font-weight:650; color:var(--text); }
+        p { margin:0; color:var(--muted); line-height:1.6; font-size:13px; }
+        label { display:block; margin:0 0 8px; font-size:13px; font-weight:600; color:var(--text); }
+        input, select { width:100%; min-height:40px; border:1px solid var(--line-strong); border-radius:8px; padding:8px 12px; font:inherit; background:var(--panel); color:var(--text); }
+        button { min-height:36px; border-radius:8px; border:1px solid transparent; padding:8px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:background-color .15s ease,border-color .15s ease,opacity .15s ease; }
+        .btn-primary { background:var(--primary); color:var(--on-primary); }
+        .btn-primary:hover:not(:disabled) { opacity:.9; }
+        .btn-secondary { background:var(--panel); border-color:var(--line-strong); color:var(--text); }
+        .btn-secondary:hover:not(:disabled) { background:var(--soft); }
+        .btn-danger { background:var(--danger-soft); color:var(--danger); border-color:var(--danger-border); }
+        .section { margin-top:16px; }
+        .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; box-shadow:var(--shadow-sm); }
+        .card .card { background:var(--soft); box-shadow:none; padding:16px 18px; }
         .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-        .metric { font-size:30px; font-weight:750; letter-spacing:-.04em; }
+        .metric { font-size:26px; font-weight:700; letter-spacing:-.03em; color:var(--text); margin-top:6px; }
         .hint { margin-top:8px; font-size:12px; color:var(--muted); }
-        .warn { color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:12px; }
-        .error { color:var(--danger); background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px; }
-        .message-box { margin-top:16px; white-space:pre-wrap; word-break:break-word; font-family:SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace; font-size:13px; }
-        .tabs { display:flex; gap:8px; padding:4px; background:#f3f4f6; border-radius:14px; margin:20px 0 24px; }
-        .tab { flex:1; background:transparent; color:#4b5563; }
-        .tab.active { background:#fff; color:var(--text); box-shadow:0 1px 3px rgba(15,23,42,.08); }
+        .warn { color:var(--warn-text); background:var(--warn-soft); border:1px solid var(--warn-border); border-radius:8px; padding:10px 12px; }
+        .error { color:var(--danger); background:var(--danger-soft); border:1px solid var(--danger-border); border-radius:8px; padding:10px 12px; }
+        .message-box { margin-top:14px; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; font-size:12px; }
+        .tabs { display:inline-flex; gap:4px; padding:4px; background:var(--soft); border:1px solid var(--line); border-radius:10px; margin:4px 0 18px; }
+        .tab { flex:initial; min-height:32px; padding:6px 16px; border-radius:7px; background:transparent; color:var(--muted); font-size:13px; }
+        .tab:hover { color:var(--text); }
+        .tab.active { background:var(--panel); color:var(--text); box-shadow:var(--shadow-sm); }
         .provider-counts { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-        .badge { display:inline-flex; align-items:center; border-radius:999px; padding:6px 10px; background:#eef2ff; color:#3730a3; font-size:12px; font-weight:650; }
-        .toast-root { position:relative; z-index:80; display:grid; gap:10px; width:320px; max-width:calc(100vw - 120px); }
-        .toast-alert { border-left:4px solid; border-radius:12px; padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 18px 48px rgba(15,23,42,.12); }
-        .bg-green-100 { background:#dcfce7; border-color:#22c55e; color:#14532d; }
-        .bg-blue-100 { background:#dbeafe; border-color:#3b82f6; color:#1e3a8a; }
-        .bg-yellow-100 { background:#fef9c3; border-color:#eab308; color:#713f12; }
-        .bg-red-100 { background:#fee2e2; border-color:#ef4444; color:#7f1d1d; }
-        .modal-backdrop { position:fixed; inset:0; display:grid; place-items:center; background:rgba(15,23,42,.42); padding:20px; }
-        .modal { width:min(560px,100%); background:#fff; border-radius:18px; padding:24px; box-shadow:0 24px 80px rgba(15,23,42,.24); }
+        .badge { display:inline-flex; align-items:center; border-radius:6px; padding:4px 10px; background:var(--badge-bg); color:var(--badge-text); border:1px solid var(--line); font-size:12px; font-weight:600; }
+        .toast-root { position:relative; z-index:80; display:grid; gap:8px; width:300px; max-width:calc(100vw - 120px); }
+        .toast-alert { border-left:3px solid; border-radius:8px; padding:9px 12px; display:flex; align-items:center; gap:10px; box-shadow:var(--shadow-pop); background:var(--panel); color:var(--text); border:1px solid var(--line); }
+        .bg-green-100 { background:var(--green-soft); border-color:var(--green); color:var(--text); }
+        .bg-blue-100 { background:var(--version-bg); border-color:var(--blue); color:var(--text); }
+        .bg-yellow-100 { background:var(--warn-soft); border-color:var(--warn-text); color:var(--text); }
+        .bg-red-100 { background:var(--danger-soft); border-color:var(--danger); color:var(--text); }
+        .modal-backdrop { position:fixed; inset:0; z-index:90; display:grid; place-items:center; background:rgba(0,0,0,.55); backdrop-filter:blur(3px); padding:20px; }
+        .modal { width:min(560px,100%); background:var(--panel); border:1px solid var(--line-strong); border-radius:14px; padding:22px; box-shadow:var(--shadow-pop); color:var(--text); }
         .language-shell { position:relative; }
-        .language-menu-button { min-width:44px; padding:10px; display:inline-flex; align-items:center; justify-content:center; background:#fff; border-color:#d1d5db; color:#374151; }
-        .config-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:16px; }
+        .language-menu-button { min-width:36px; min-height:36px; padding:8px; display:inline-flex; align-items:center; justify-content:center; background:var(--panel); border-color:var(--line); color:var(--muted); }
+        .language-menu-button:hover { color:var(--text); background:var(--soft); }
+        .config-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; }
         .readonly-config-card { display:grid; gap:12px; }
-        .readonly-config-pre { margin:0; padding:14px 16px; border-radius:12px; background:#fff; border:1px solid rgba(17,24,39,.06); font-family:SFMono-Regular,Consolas,Menlo,monospace; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; color:#374151; max-height:420px; overflow:auto; }
+        .readonly-config-pre { margin:0; padding:14px 16px; border-radius:10px; background:var(--soft); border:1px solid var(--line); font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; color:var(--text); max-height:420px; overflow:auto; }
         .yaml-hint { margin:0 0 12px; font-size:13px; color:var(--muted); }
-        .help-content { line-height:1.65; color:#374151; }
-        .help-content h3 { margin:20px 0 8px; color:#111827; font-size:16px; }
+        .help-content { line-height:1.65; color:var(--muted); }
+        .help-content h3 { margin:18px 0 8px; color:var(--text); font-size:14px; font-weight:650; }
         .help-content ul { padding-left:20px; margin:0 0 16px; }
         .help-content li { margin-bottom:8px; }
-        .help-content code { background:#f3f4f6; padding:1px 6px; border-radius:6px; font-size:13px; }
+        .help-content code { background:var(--soft); color:var(--text); border:1px solid var(--line); padding:1px 6px; border-radius:5px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; }
         .run-history-list { display:grid; gap:12px; }
-        .run-history-card { background:#fff; border:1px solid rgba(17,24,39,.06); border-radius:14px; padding:14px 16px; display:grid; gap:10px; }
+        .run-history-card { background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:14px 16px; display:grid; gap:10px; }
         .run-history-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
         .run-history-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-        .run-history-time { font-size:12px; color:var(--muted); font-weight:600; }
+        .run-history-time { font-size:12px; color:var(--muted); font-weight:500; }
         .run-history-stats { display:flex; flex-wrap:wrap; gap:8px; }
-        .run-history-stat { display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:4px 10px; background:#f8fafc; border:1px solid var(--line); font-size:12px; font-weight:650; color:#374151; }
+        .run-history-stat { display:inline-flex; align-items:center; gap:4px; border-radius:6px; padding:3px 9px; background:var(--panel); border:1px solid var(--line); font-size:12px; font-weight:600; color:var(--text); }
         .run-history-providers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-        .run-history-provider { display:grid; gap:4px; padding:10px 12px; border-radius:12px; background:var(--soft); border:1px solid rgba(17,24,39,.04); min-width:0; }
-        .run-history-provider strong { font-size:13px; }
-        .run-history-empty { text-align:center; color:var(--muted); padding:24px 12px; }
-        .pacing-table-wrap { overflow-x:auto; }
-        .pacing-table { width:100%; border-collapse:collapse; font-size:13px; }
-        .pacing-table th, .pacing-table td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
-        .pacing-table th { color:var(--muted); font-weight:650; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+        .run-history-provider { display:grid; gap:4px; padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-width:0; }
+        .run-history-provider strong { font-size:13px; color:var(--text); }
+        .run-history-empty { text-align:center; color:var(--muted); padding:24px 12px; font-size:13px; }
+        .pacing-table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--soft); }
+        .pacing-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+        .pacing-table th, .pacing-table td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; color:var(--text); }
+        .pacing-table th { color:var(--muted); background:var(--panel); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
         .pacing-table tr:last-child td { border-bottom:none; }
-        .pacing-table td.num, .pacing-table th.num { text-align:right; font-variant-numeric:tabular-nums; }
-        .pacing-table tr.pacing-row-depleted { opacity:.5; }
+        .pacing-table tbody tr:hover td { background:var(--soft-hover); }
+        .pacing-table td.num, .pacing-table th.num { text-align:right; font-variant-numeric:tabular-nums; font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; }
+        .pacing-table tr.pacing-row-depleted { opacity:.48; }
         .pacing-score-cell { font-weight:700; color:var(--blue); }
-        .pacing-meta-hint { margin-bottom:12px; }
+        .pacing-meta-hint { margin-bottom:10px; }
         .history-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
         .history-card-header h2 { margin:0; }
-        .history-refresh-btn { min-height:40px; padding:8px 14px; }
-        .provider-selection-grid { display:grid; grid-template-columns:minmax(0,.5fr) minmax(0,1.5fr); gap:20px; align-items:start; }
+        .history-refresh-btn { min-height:34px; padding:6px 12px; }
+        .provider-selection-grid { display:grid; grid-template-columns:minmax(0,.5fr) minmax(0,1.5fr); gap:16px; align-items:start; }
         .provider-selector-column,.selected-provider-column { min-width:0; }
         .provider-multi-select { position:relative; width:100%; }
-        .provider-dropdown-trigger { width:100%; min-height:44px; display:flex; align-items:center; justify-content:space-between; border:1px solid #d1d5db; border-radius:12px; padding:10px 12px; background:#fff; color:var(--text); cursor:pointer; }
+        .provider-dropdown-trigger { width:100%; min-height:40px; display:flex; align-items:center; justify-content:space-between; border:1px solid var(--line-strong); border-radius:8px; padding:8px 12px; background:var(--panel); color:var(--text); cursor:pointer; }
         .provider-dropdown-arrow { transition:transform .2s ease; color:var(--muted); display:inline-flex; align-items:center; }
         .provider-multi-select.open .provider-dropdown-arrow { transform:rotate(180deg); }
-        .provider-dropdown-menu { position:absolute; top:calc(100% + 6px); left:0; width:100%; z-index:100; display:grid; gap:4px; padding:6px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 14px 28px rgba(15,23,42,.12); }
-        .provider-dropdown-item { width:100%; min-height:38px; display:flex; align-items:center; gap:10px; padding:8px 10px; border:0; border-radius:9px; background:#fff; color:#374151; font-size:14px; font-weight:600; text-align:left; cursor:pointer; }
-        .provider-dropdown-item:hover { background:#f3f4f6; }
-        .provider-dropdown-item.active { background:#e0f2fe; color:#0369a1; }
-        .selected-provider-tags { min-height:44px; padding:6px 10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; border:1px dashed #bae6fd; border-radius:12px; background:#f8fafc; }
-        .provider-tag { display:inline-flex; align-items:center; gap:6px; border:1px solid #99f6e4; border-radius:999px; padding:5px 9px; background:#ccfbf1; color:#0f766e; font-size:12px; font-weight:700; }
-        .provider-tag-remove { border:0; min-height:auto; padding:0; background:transparent; color:#64748b; font-size:14px; line-height:1; cursor:pointer; }
+        .provider-dropdown-menu { position:absolute; top:calc(100% + 6px); left:0; width:100%; z-index:100; display:grid; gap:3px; padding:5px; background:var(--panel); border:1px solid var(--line-strong); border-radius:10px; box-shadow:var(--shadow-pop); }
+        .provider-dropdown-item { width:100%; min-height:34px; display:flex; align-items:center; gap:10px; padding:6px 10px; border:0; border-radius:6px; background:transparent; color:var(--text); font-size:13px; font-weight:500; text-align:left; cursor:pointer; }
+        .provider-dropdown-item:hover { background:var(--soft); }
+        .provider-dropdown-item.active { background:var(--soft-hover); color:var(--text); font-weight:650; }
+        .selected-provider-tags { min-height:40px; padding:6px 10px; display:flex; align-items:center; flex-wrap:wrap; gap:6px; border:1px dashed var(--line-strong); border-radius:8px; background:var(--soft); }
+        .provider-tag { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-strong); border-radius:6px; padding:4px 8px; background:var(--panel); color:var(--text); font-size:12px; font-weight:600; }
+        .provider-tag-remove { border:0; min-height:auto; padding:0; background:transparent; color:var(--muted); font-size:14px; line-height:1; cursor:pointer; }
         .checkbox-list { display:grid; gap:10px; margin-top:12px; }
         .checkbox-wrapper-46 input[type="checkbox"] { display:none; visibility:hidden; }
         .checkbox-wrapper-46 .cbx { margin:auto; user-select:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:space-between; width:100%; gap:10px; }
-        .checkbox-wrapper-46 .cbx .cbx-box { position:relative; width:18px; height:18px; border-radius:3px; border:1px solid #9098a9; flex-shrink:0; }
-        .checkbox-wrapper-46 .cbx .cbx-box svg { position:absolute; top:3px; left:2px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:16px; stroke-dashoffset:16px; }
-        .checkbox-wrapper-46 .inp-cbx:checked + .cbx .cbx-box { background:#506eec; border-color:#506eec; }
+        .checkbox-wrapper-46 .cbx .cbx-box { position:relative; width:18px; height:18px; border-radius:4px; border:1px solid var(--line-strong); flex-shrink:0; }
+        .checkbox-wrapper-46 .cbx .cbx-box svg { position:absolute; top:3px; left:2px; fill:none; stroke:var(--on-primary); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:16px; stroke-dashoffset:16px; }
+        .checkbox-wrapper-46 .inp-cbx:checked + .cbx .cbx-box { background:var(--primary); border-color:var(--primary); }
         .checkbox-wrapper-46 .inp-cbx:checked + .cbx .cbx-box svg { stroke-dashoffset:0; }
         .custom-select-container { position: relative; width: 100%; }
-        .custom-select-trigger { display:flex; align-items:center; justify-content:space-between; min-height:44px; border:1px solid #d1d5db; border-radius:12px; padding:10px 12px; background:#fff; cursor:pointer; user-select:none; font-size:14px; width:100%; }
+        .custom-select-trigger { display:flex; align-items:center; justify-content:space-between; min-height:40px; border:1px solid var(--line-strong); border-radius:8px; padding:8px 12px; background:var(--panel); color:var(--text); cursor:pointer; user-select:none; font-size:13px; width:100%; }
         .custom-select-arrow { transition: transform 0.2s; color: var(--muted); display: flex; align-items: center; }
         .custom-select-container.open .custom-select-arrow { transform: rotate(180deg); }
-        .custom-select-options { position:absolute; top:calc(100% + 4px); left:0; width:100%; background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 25px -5px rgba(0,0,0,.1); z-index:99; overflow:hidden; padding:4px; }
-        .custom-select-option { padding:10px 12px; cursor:pointer; font-size:14px; border-radius:8px; color:#374151; }
-        .custom-select-option:hover { background:#f3f4f6; }
-        .custom-select-option.active { background:#e0f2fe; color:#0369a1; font-weight:600; }
-        button:disabled { opacity:0.6; cursor:not-allowed; background:#94a3b8 !important; color:#f1f5f9 !important; border-color:#cbd5e1 !important; }
+        .custom-select-options { position:absolute; top:calc(100% + 4px); left:0; width:100%; background:var(--panel); border:1px solid var(--line-strong); border-radius:10px; box-shadow:var(--shadow-pop); z-index:99; overflow:hidden; padding:4px; }
+        .custom-select-option { padding:8px 10px; cursor:pointer; font-size:13px; border-radius:6px; color:var(--text); }
+        .custom-select-option:hover { background:var(--soft); }
+        .custom-select-option.active { background:var(--soft-hover); color:var(--text); font-weight:650; }
+        .result-details-box { max-height:320px; overflow-y:auto; background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+        .result-detail-row { display:flex; align-items:center; justify-content:space-between; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:9px 12px; gap:12px; color:var(--text); }
+        button:disabled { opacity:0.5; cursor:not-allowed; }
         [hidden] { display:none !important; }
-        @media (max-width:720px) { body{padding:12px}.container{padding:20px}.grid,.config-detail-grid,.provider-selection-grid,.run-history-providers{grid-template-columns:1fr}.tabs{display:grid;grid-template-columns:1fr 1fr} }
+        @media (max-width:720px) { body{padding:16px}.topbar{padding-right:0}.grid,.config-detail-grid,.provider-selection-grid,.run-history-providers{grid-template-columns:1fr}.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;width:100%} }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="topbar">
-            <h1><span class="title-text" data-i18n="pageTitle">凭证优先级管理</span><span id="versionBadge" class="version-badge"></span></h1>
+            <h1><span class="title-text" data-i18n="pageTitle">Quota Pacer</span><span id="versionBadge" class="version-badge"></span></h1>
             <div class="topbar-actions">
                 <div id="toastRoot" class="toast-root" aria-live="polite"></div>
                 <div class="language-shell">
@@ -130,53 +207,53 @@ const StatusHTML = `<!DOCTYPE html>
 
         <main id="appShell">
             <nav id="pluginTabsNav" class="tabs" aria-label="Plugin tabs">
-                <button type="button" class="tab active" data-tab="overview" onclick="showTab('overview')" data-i18n="overviewTab">概览</button>
-                <button type="button" class="tab" data-tab="history" onclick="showTab('history')" data-i18n="historyTab">执行记录</button>
-                <button type="button" class="tab" data-tab="help" onclick="showTab('help')" data-i18n="helpTab">帮助</button>
+                <button type="button" class="tab active" data-tab="overview" onclick="showTab('overview')" data-i18n="overviewTab">Overview</button>
+                <button type="button" class="tab" data-tab="history" onclick="showTab('history')" data-i18n="historyTab">Run History</button>
+                <button type="button" class="tab" data-tab="help" onclick="showTab('help')" data-i18n="helpTab">Help</button>
             </nav>
 
             <section id="overviewPanel">
                 <div class="grid">
-                    <div class="card"><p data-i18n="totalCredentials">总凭证数</p><div id="totalCredentialValue" class="metric">-</div></div>
-                    <div class="card"><p data-i18n="providerCredentialCount">提供商凭证数量</p><div id="providerCounts" class="provider-counts"></div></div>
+                    <div class="card"><p data-i18n="totalCredentials">Total Credentials</p><div id="totalCredentialValue" class="metric">-</div></div>
+                    <div class="card"><p data-i18n="providerCredentialCount">Provider Credential Count</p><div id="providerCounts" class="provider-counts"></div></div>
                 </div>
                 <div class="section card">
-                    <h2 data-i18n="pacingTableTitle">额度调度表</h2>
-                    <p class="yaml-hint" data-i18n="pacingTableHint">原始配速富余度保留未封底的最保守窗口结果。所有本轮有实际正剩余额度的账号共享同一个全局平移；归一化配速富余度再驱动调度权重。Codex 即将过期重置额度只在最后的权重计算额外加 1.0，不会改变原始值或全局平移。</p>
+                    <h2 data-i18n="pacingTableTitle">Quota Scheduling Table</h2>
+                    <p class="yaml-hint" data-i18n="pacingTableHint">Raw headroom preserves the unclamped bottleneck pace result. Fresh credentials with actual positive quota share one global uplift; normalized headroom then drives scheduling weight. An expiring Codex reset credit adds 1.0 only in the final weight calculation, never to raw headroom or the uplift baseline.</p>
                     <div id="pacingSnapshotMeta" class="hint pacing-meta-hint"></div>
                     <div class="pacing-table-wrap">
                         <table class="pacing-table">
                             <thead>
                                 <tr>
-                                    <th data-i18n="colProvider">提供商</th>
-                                    <th data-i18n="colAccount">账号</th>
-                                    <th data-i18n="colPlan">套餐</th>
-                                    <th class="num" data-i18n="colRemaining">剩余额度</th>
-                                    <th data-i18n="colWindow">窗口</th>
-                                    <th data-i18n="colResetAt">重置时间</th>
-                                    <th class="num" data-i18n="colRawHeadroom">原始配速富余度</th>
-                                    <th class="num" data-i18n="colGlobalUplift">全局平移</th>
-                                    <th class="num" data-i18n="colNormalizedHeadroom">归一化配速富余度</th>
-                                    <th class="num" data-i18n="colSchedulingWeight">调度权重</th>
-                                    <th data-i18n="colResetCredit">重置额度</th>
-                                    <th class="num" data-i18n="colPriority">当前优先级</th>
-                                    <th data-i18n="colEvidence">证据</th>
+                                    <th data-i18n="colProvider">Provider</th>
+                                    <th data-i18n="colAccount">Account</th>
+                                    <th data-i18n="colPlan">Plan</th>
+                                    <th class="num" data-i18n="colRemaining">Remaining</th>
+                                    <th data-i18n="colWindow">Window</th>
+                                    <th data-i18n="colResetAt">Reset At</th>
+                                    <th class="num" data-i18n="colRawHeadroom">Raw Headroom</th>
+                                    <th class="num" data-i18n="colGlobalUplift">Global Uplift</th>
+                                    <th class="num" data-i18n="colNormalizedHeadroom">Normalized Headroom</th>
+                                    <th class="num" data-i18n="colSchedulingWeight">Scheduling Weight</th>
+                                    <th data-i18n="colResetCredit">Reset Credits</th>
+                                    <th class="num" data-i18n="colPriority">Priority</th>
+                                    <th data-i18n="colEvidence">Evidence</th>
                                 </tr>
                             </thead>
                             <tbody id="pacingTableBody"></tbody>
                         </table>
                     </div>
-                    <div id="pacingTableEmpty" class="run-history-empty" hidden data-i18n="pacingTableEmpty">暂无排序数据，执行一次排序后将展示计算详情。</div>
+                    <div id="pacingTableEmpty" class="run-history-empty" hidden data-i18n="pacingTableEmpty">No sort data yet. Run a priority sort to see the calculation details.</div>
                 </div>
                 <div class="section card">
-                    <h2 data-i18n="configDetails">配置详情</h2>
-                    <p class="yaml-hint" data-i18n="configVisualHint">自动优先级与排序规则请在 CPA「插件管理」可视化配置中修改；本页仅展示当前生效配置并支持手动排序。</p>
+                    <h2 data-i18n="configDetails">Config Details</h2>
+                    <p class="yaml-hint" data-i18n="configVisualHint">Change auto priority and rules in CPA Plugin Manager visual config fields. This page shows the effective config and supports manual sorting only.</p>
                     <div class="config-detail-grid">
-                        <div class="card"><p data-i18n="autoPriorityEnabled">自动优先级排序</p><div id="autoApplySummary" class="metric">-</div></div>
-                        <div class="card"><p data-i18n="sortingProviderSelection">排序提供商选择</p><div id="providerScopeSummary" class="metric">-</div></div>
+                        <div class="card"><p data-i18n="autoPriorityEnabled">Automatic Priority Sorting</p><div id="autoApplySummary" class="metric">-</div></div>
+                        <div class="card"><p data-i18n="sortingProviderSelection">Sorting provider selection</p><div id="providerScopeSummary" class="metric">-</div></div>
                     </div>
                     <div style="display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top:16px">
-                        <button id="openProviderModalButton" type="button" class="btn-primary" onclick="openProviderModal('apply')" data-i18n="runPrioritySort">执行优先级排序</button>
+                        <button id="openProviderModalButton" type="button" class="btn-primary" onclick="openProviderModal('apply')" data-i18n="runPrioritySort">Run Priority Sort</button>
                     </div>
                 </div>
             </section>
@@ -185,10 +262,10 @@ const StatusHTML = `<!DOCTYPE html>
                 <div class="card">
                     <div class="history-card-header">
                         <div>
-                            <h2 data-i18n="historyTab">执行记录</h2>
-                            <p class="yaml-hint" data-i18n="historyHint" style="margin-bottom:0;">展示最近 5 次自动或手动执行摘要（进程内保留，重启后清空）。</p>
+                            <h2 data-i18n="historyTab">Run History</h2>
+                            <p class="yaml-hint" data-i18n="historyHint" style="margin-bottom:0;">Shows the last 5 automatic or manual runs (in-memory; cleared after restart).</p>
                         </div>
-                        <button id="refreshHistoryButton" type="button" class="btn-secondary history-refresh-btn" onclick="refreshRunHistory()" data-i18n="refreshHistory">刷新</button>
+                        <button id="refreshHistoryButton" type="button" class="btn-secondary history-refresh-btn" onclick="refreshRunHistory()" data-i18n="refreshHistory">Refresh</button>
                     </div>
                     <div id="runHistoryList" class="run-history-list" style="margin-top:12px;"></div>
                 </div>
@@ -196,23 +273,23 @@ const StatusHTML = `<!DOCTYPE html>
 
             <section id="helpPanel" hidden>
                 <div class="card help-content">
-                    <h2 data-i18n="helpTab">帮助</h2>
-                    <h3 data-i18n="helpConfigTitle">可视化配置字段说明</h3>
-                    <p data-i18n="helpConfigDesc">在 CPA 插件管理页打开 quota-pacer，于「配置字段」中编辑并保存。字段说明如下：</p>
+                    <h2 data-i18n="helpTab">Help</h2>
+                    <h3 data-i18n="helpConfigTitle">Visual config fields</h3>
+                    <p data-i18n="helpConfigDesc">Open quota-pacer in CPA Plugin Manager and edit the Config fields. Field notes:</p>
                     <ul>
-                        <li><code>auto_apply</code>: <span data-i18n="helpAutoApply">是否开启定时自动优先级排序并写回。</span></li>
-                        <li><code>provider_scope</code>: <span data-i18n="helpProviderScope">排序提供商：all 表示全部；或 antigravity|codex|claude|xai（| 分隔）。</span></li>
-                        <li><code>antigravity_model_group</code>: <span data-i18n="helpAntigravityGroup">Antigravity 配额模型组：gemini 或 claude_gpt。</span></li>
-                        <li><code>interval</code>: <span data-i18n="helpInterval">自动排序间隔（分钟），填写纯数字，默认 15。</span></li>
-                        <li><code>immediate_probe_limit</code>: <span data-i18n="helpImmediateProbe">单轮立即探测凭证上限，默认 30。</span></li>
-                        <li><code>active_group_size</code>: <span data-i18n="helpActiveGroup">分批探测时每批凭证数，默认 10。</span></li>
-                        <li><code>max_concurrency</code>: <span data-i18n="helpMaxConcurrency">探测并发上限，默认 6。</span></li>
+                        <li><code>auto_apply</code>: <span data-i18n="helpAutoApply">Enable scheduled automatic priority sorting and write-back.</span></li>
+                        <li><code>provider_scope</code>: <span data-i18n="helpProviderScope">Providers to sort: all, or antigravity|codex|claude|xai separated by |.</span></li>
+                        <li><code>antigravity_model_group</code>: <span data-i18n="helpAntigravityGroup">Antigravity quota model group: gemini or claude_gpt.</span></li>
+                        <li><code>interval</code>: <span data-i18n="helpInterval">Auto-sort interval in minutes; enter a plain number (default 15).</span></li>
+                        <li><code>immediate_probe_limit</code>: <span data-i18n="helpImmediateProbe">Max credentials probed immediately per round (default 30).</span></li>
+                        <li><code>active_group_size</code>: <span data-i18n="helpActiveGroup">Credentials per batch when probing in batches (default 10).</span></li>
+                        <li><code>max_concurrency</code>: <span data-i18n="helpMaxConcurrency">Probe concurrency limit (default 6).</span></li>
                     </ul>
-                    <h3 data-i18n="helpPageTitle">插件页能力</h3>
+                    <h3 data-i18n="helpPageTitle">Plugin page capabilities</h3>
                     <ul>
-                        <li data-i18n="helpPageOverview">概览：只读展示当前配置与凭证统计，并支持手动执行优先级排序。</li>
-                        <li data-i18n="helpPageHistory">执行记录：查看最近 5 次自动/手动执行的结构化摘要。</li>
-                        <li data-i18n="helpPageNoEdit">本页不编辑配置；配置请在 CPA 插件管理可视化字段中修改。</li>
+                        <li data-i18n="helpPageOverview">Overview: read-only effective config and credential stats, plus manual priority sort.</li>
+                        <li data-i18n="helpPageHistory">Run history: structured summaries of the last 5 automatic/manual runs.</li>
+                        <li data-i18n="helpPageNoEdit">This page does not edit config; use CPA Plugin Manager visual fields.</li>
                     </ul>
                 </div>
             </section>
@@ -221,13 +298,13 @@ const StatusHTML = `<!DOCTYPE html>
 
     <div id="providerModal" class="modal-backdrop" hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="providerModalTitle">
-            <h2 id="providerModalTitle" data-i18n="selectProviderTitle">选择要排序的提供商</h2>
-            <p data-i18n="manualRunHint" style="font-size:13px; color:var(--muted); margin-bottom:16px;">该按钮为手动执行。自动排序请在 CPA 插件管理可视化配置中设置 auto_apply 等字段。</p>
-            <p class="hint future-providers-hint" data-i18n="futureProvidersHint" style="margin-bottom:16px; font-size:12px; color:var(--muted);">目前支持 Antigravity、Codex、Claude 与 xAI 凭证。</p>
-            <label for="manualProviderModeSelect" data-i18n="sortingProviderSelection">排序提供商选择</label>
+            <h2 id="providerModalTitle" data-i18n="selectProviderTitle">Select Providers</h2>
+            <p data-i18n="manualRunHint" style="font-size:13px; color:var(--muted); margin-bottom:16px;">Manual run only. Configure auto_apply and related fields in CPA Plugin Manager visual config.</p>
+            <p class="hint future-providers-hint" data-i18n="futureProvidersHint" style="margin-bottom:16px; font-size:12px; color:var(--muted);">Antigravity, Codex, Claude, and xAI credentials are currently supported.</p>
+            <label for="manualProviderModeSelect" data-i18n="sortingProviderSelection">Sorting provider selection</label>
             <div class="modal-selection-row provider-selection-grid" style="margin-bottom:16px;">
                 <div class="provider-selector-column">
-                    <select id="manualProviderModeSelect" onchange="syncManualProviderModeVisibility()" style="display:none;"><option value="all" data-i18n="providerAll">全部</option><option value="antigravity">Antigravity</option><option value="codex">Codex</option></select>
+                    <select id="manualProviderModeSelect" onchange="syncManualProviderModeVisibility()" style="display:none;"><option value="all" data-i18n="providerAll">All</option><option value="antigravity">Antigravity</option><option value="codex">Codex</option></select>
                     <div id="manualProviderControls" class="checkbox-list" hidden style="margin-top:0;"></div>
                     <div id="manualProviderMultiSelect" class="provider-multi-select" data-provider-multi-select="manual"></div>
                 </div>
@@ -237,24 +314,24 @@ const StatusHTML = `<!DOCTYPE html>
             </div>
             <div id="manualAntigravityModelGroupRow" class="modal-selection-row" style="display:flex; gap:20px; align-items:flex-start; margin-bottom:16px;">
                 <div style="flex:1;">
-                    <label for="manualAntigravityModelGroupSelect" data-i18n="antigravityModelGroup">Antigravity 模型组</label>
-                    <select id="manualAntigravityModelGroupSelect"><option value="gemini" data-i18n="geminiModelGroup">Gemini 模型</option><option value="claude_gpt" data-i18n="claudeGPTModelGroup">Claude 和 GPT 模型</option></select>
+                    <label for="manualAntigravityModelGroupSelect" data-i18n="antigravityModelGroup">Antigravity model group</label>
+                    <select id="manualAntigravityModelGroupSelect"><option value="gemini" data-i18n="geminiModelGroup">Gemini models</option><option value="claude_gpt" data-i18n="claudeGPTModelGroup">Claude and GPT models</option></select>
                 </div>
             </div>
             <div id="modalNotice" class="message-box" role="status"></div>
             <div style="display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top:18px">
-                <button id="executePriorityButton" type="button" class="btn-primary" onclick="executeFromModal()" data-i18n="applyRun">执行</button>
-                <button type="button" class="btn-danger" onclick="closeProviderModal()" data-i18n="cancel">关闭</button>
+                <button id="executePriorityButton" type="button" class="btn-primary" onclick="executeFromModal()" data-i18n="applyRun">Execute</button>
+                <button type="button" class="btn-danger" onclick="closeProviderModal()" data-i18n="cancel">Close</button>
             </div>
         </div>
     </div>
 
     <div id="resultModal" class="modal-backdrop" hidden>
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle" style="width: min(680px, 95%); max-width: 680px;">
-            <h2 id="resultModalTitle" data-i18n="runCompleted" style="margin-bottom: 16px;">手动任务已完成</h2>
-            <div id="resultDetailsContainer" style="max-height: 320px; overflow-y: auto; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;"></div>
+            <h2 id="resultModalTitle" data-i18n="runCompleted" style="margin-bottom: 16px;">Manual task completed</h2>
+            <div id="resultDetailsContainer" class="result-details-box"></div>
             <div style="display:flex; justify-content:flex-end; margin-top:20px">
-                <button type="button" class="btn-secondary" onclick="closeResultModal()" data-i18n="cancel" style="min-width: 100px;">关闭</button>
+                <button type="button" class="btn-secondary" onclick="closeResultModal()" data-i18n="cancel" style="min-width: 100px;">Close</button>
             </div>
         </div>
     </div>
@@ -268,7 +345,74 @@ const StatusHTML = `<!DOCTYPE html>
             "zh-CN":{pageTitle:"凭证优先级管理",overviewTab:"概览",historyTab:"执行记录",helpTab:"帮助",totalCredentials:"总凭证数",providerCredentialCount:"提供商凭证数量",configDetails:"配置详情",configVisualHint:"自动优先级与排序规则请在 CPA「插件管理」可视化配置中修改；本页仅展示当前生效配置并支持手动排序。",historyHint:"展示最近 5 次自动或手动执行摘要（进程内保留，重启后清空）。",historyEmpty:"暂无执行记录。",refreshHistory:"刷新",historyRefreshed:"执行记录已刷新。",manualRunHint:"该按钮为手动执行。自动排序请在 CPA 插件管理可视化配置中设置 auto_apply 等字段。",futureProvidersHint:"目前支持 Antigravity、Codex、Claude 与 xAI 凭证。",failedQuotaFetch:"获取配额失败",manualRetry:"重试",runPrioritySort:"执行优先级排序",overviewLoadingText:"加载凭证统计中...",autoPriorityEnabled:"自动优先级排序",sortingProviderSelection:"排序提供商选择",antigravityModelGroup:"Antigravity 模型组",geminiModelGroup:"Gemini 模型",claudeGPTModelGroup:"Claude 和 GPT 模型",providerAll:"全部",providerCustom:"自定义",selectProviderTitle:"选择要排序的提供商",autoStatusOn:"已开启",autoStatusOff:"已关闭",applyRun:"执行",cancel:"关闭",running:"执行中...",priorityUnset:"未设置",runCompleted:"手动任务已完成",noChanges:"本次没有优先级变化",kindAuto:"自动排序",kindManual:"手动执行",kindDryRun:"试运行",kindApply:"写回",triggerLabel:"触发方式",statCredentials:"凭证数",statSucceeded:"成功",statFailed:"失败",statSkipped:"跳过",providerBreakdown:"按提供商",helpConfigTitle:"可视化配置字段说明",helpConfigDesc:"在 CPA 插件管理页打开 quota-pacer，于「配置字段」中编辑并保存。字段说明如下：",helpAutoApply:"是否开启定时自动优先级排序并写回。",helpProviderScope:"排序提供商：all 表示全部；或 antigravity|codex|claude|xai（多个用 | 分隔）。",helpAntigravityGroup:"Antigravity 配额模型组：gemini 或 claude_gpt。",helpInterval:"自动排序间隔（分钟），填写纯数字，默认 15。",helpImmediateProbe:"单轮立即探测凭证上限，默认 30。",helpActiveGroup:"分批探测时每批凭证数，默认 10。",helpMaxConcurrency:"探测并发上限，默认 6。",helpPageTitle:"插件页能力",helpPageOverview:"概览：只读展示当前配置与凭证统计，并支持手动执行优先级排序。",helpPageHistory:"执行记录：查看最近 5 次自动/手动执行的结构化摘要。",helpPageNoEdit:"本页不编辑配置；配置请在 CPA 插件管理可视化字段中修改。",pacingTableTitle:"额度调度表",pacingTableHint:"原始配速富余度保留未封底的最保守窗口结果。所有本轮有实际正剩余额度的账号共享同一个全局平移；归一化配速富余度再驱动调度权重。Codex 即将过期重置额度只在最后的权重计算额外加 1.0，不会改变原始值或全局平移。",pacingTableEmpty:"暂无排序数据，执行一次排序后将展示计算详情。",pacingSnapshotAt:"数据时间",colProvider:"提供商",colAccount:"账号",colPlan:"套餐",colRemaining:"剩余额度",colWindow:"窗口",colResetAt:"重置时间",colRawHeadroom:"原始配速富余度",colGlobalUplift:"全局平移",colNormalizedHeadroom:"归一化配速富余度",colSchedulingWeight:"调度权重",colResetCredit:"重置额度",colPriority:"当前优先级",colEvidence:"证据",evidenceFresh:"新鲜",evidenceStale:"陈旧",windowWeekly:"周窗口（7天）",windowSevenDay:"7 天窗口",windowTwentyFourHour:"24 小时窗口",windowFiveHour:"5 小时窗口",windowNone:"无重置时间",planFree:"Free",planPlus:"Plus",planPro:"Pro",planTeam:"Team",planUnknown:"未知",unitDayShort:"天",unitHourShort:"小时",switchLanguageAria:"切换语言",pluginTabsAria:"插件标签页"},
             "en-US":{pageTitle:"Quota Pacer",overviewTab:"Overview",historyTab:"Run History",helpTab:"Help",totalCredentials:"Total Credentials",providerCredentialCount:"Provider Credential Count",configDetails:"Config Details",configVisualHint:"Change auto priority and rules in CPA Plugin Manager visual config fields. This page shows the effective config and supports manual sorting only.",historyHint:"Shows the last 5 automatic or manual runs (in-memory; cleared after restart).",historyEmpty:"No run history yet.",refreshHistory:"Refresh",historyRefreshed:"Run history refreshed.",manualRunHint:"Manual run only. Configure auto_apply and related fields in CPA Plugin Manager visual config.",futureProvidersHint:"Antigravity, Codex, Claude, and xAI credentials are currently supported.",failedQuotaFetch:"Failed to fetch quota",manualRetry:"Retry",runPrioritySort:"Run Priority Sort",overviewLoadingText:"Loading credential summary...",autoPriorityEnabled:"Automatic Priority Sorting",sortingProviderSelection:"Sorting provider selection",antigravityModelGroup:"Antigravity model group",geminiModelGroup:"Gemini models",claudeGPTModelGroup:"Claude and GPT models",providerAll:"All",providerCustom:"Custom",selectProviderTitle:"Select Providers",autoStatusOn:"ON",autoStatusOff:"OFF",applyRun:"Execute",cancel:"Close",running:"Running...",priorityUnset:"Unset",runCompleted:"Manual task completed",noChanges:"No priority changes this time",kindAuto:"Auto sort",kindManual:"Manual run",kindDryRun:"Dry run",kindApply:"Apply",triggerLabel:"Trigger",statCredentials:"Credentials",statSucceeded:"Succeeded",statFailed:"Failed",statSkipped:"Skipped",providerBreakdown:"By provider",helpConfigTitle:"Visual config fields",helpConfigDesc:"Open quota-pacer in CPA Plugin Manager and edit the Config fields. Field notes:",helpAutoApply:"Enable scheduled automatic priority sorting and write-back.",helpProviderScope:"Providers to sort: all, or antigravity|codex|claude|xai separated by |.",helpAntigravityGroup:"Antigravity quota model group: gemini or claude_gpt.",helpInterval:"Auto-sort interval in minutes; enter a plain number (default 15).",helpImmediateProbe:"Max credentials probed immediately per round (default 30).",helpActiveGroup:"Credentials per batch when probing in batches (default 10).",helpMaxConcurrency:"Probe concurrency limit (default 6).",helpPageTitle:"Plugin page capabilities",helpPageOverview:"Overview: read-only effective config and credential stats, plus manual priority sort.",helpPageHistory:"Run history: structured summaries of the last 5 automatic/manual runs.",helpPageNoEdit:"This page does not edit config; use CPA Plugin Manager visual fields.",pacingTableTitle:"Quota Scheduling Table",pacingTableHint:"Raw headroom preserves the unclamped bottleneck pace result. Fresh credentials with actual positive quota share one global uplift; normalized headroom then drives scheduling weight. An expiring Codex reset credit adds 1.0 only in the final weight calculation, never to raw headroom or the uplift baseline.",pacingTableEmpty:"No sort data yet. Run a priority sort to see the calculation details.",pacingSnapshotAt:"Snapshot at",colProvider:"Provider",colAccount:"Account",colPlan:"Plan",colRemaining:"Remaining",colWindow:"Window",colResetAt:"Reset At",colRawHeadroom:"Raw Headroom",colGlobalUplift:"Global Uplift",colNormalizedHeadroom:"Normalized Headroom",colSchedulingWeight:"Scheduling Weight",colResetCredit:"Reset Credits",colPriority:"Priority",colEvidence:"Evidence",evidenceFresh:"Fresh",evidenceStale:"Stale",windowWeekly:"Weekly (7d)",windowSevenDay:"7-day window",windowTwentyFourHour:"24h window",windowFiveHour:"5h window",windowNone:"No reset time",planFree:"Free",planPlus:"Plus",planPro:"Pro",planTeam:"Team",planUnknown:"Unknown",unitDayShort:"d",unitHourShort:"h",switchLanguageAria:"Switch language",pluginTabsAria:"Plugin tabs"}
         };
-        let activeLanguage="zh-CN";
+        const CPAMC_THEME_KEY="cli-proxy-theme";
+        const CPAMC_LANGUAGE_KEY="cli-proxy-language";
+        const QUOTA_PACER_LANGUAGE_KEY="quota-pacer-language";
+        function normalizeSupportedLanguage(raw){
+            const val=String(raw||"").trim().toLowerCase();
+            if(!val){return "";}
+            if(val.indexOf("zh")===0){return "zh-CN";}
+            return "en-US";
+        }
+        function readCPAMCStoredLanguage(){
+            for(const key of [CPAMC_LANGUAGE_KEY,"i18nextLng"]){
+                try{
+                    const raw=localStorage.getItem(key);
+                    if(!raw){continue;}
+                    try{
+                        const parsed=JSON.parse(raw);
+                        const candidate=(parsed&&parsed.state&&parsed.state.language)||(parsed&&parsed.language)||parsed;
+                        if(typeof candidate==="string"&&candidate.trim()){return normalizeSupportedLanguage(candidate);}
+                    }catch(_){
+                        return normalizeSupportedLanguage(raw);
+                    }
+                }catch(_){}
+            }
+            return "";
+        }
+        function detectInitialLanguage(){
+            try{
+                const explicit=localStorage.getItem(QUOTA_PACER_LANGUAGE_KEY);
+                if(explicit==="en-US"||explicit==="zh-CN"){return explicit;}
+            }catch(_){}
+            try{
+                if(window.self!==window.top&&window.parent&&window.parent.document){
+                    const parentLang=window.parent.document.documentElement.getAttribute("lang");
+                    if(parentLang){return normalizeSupportedLanguage(parentLang);}
+                }
+            }catch(_){}
+            const stored=readCPAMCStoredLanguage();
+            if(stored){return stored;}
+            return "en-US";
+        }
+        function resolveCPAMCTheme(){
+            try{
+                if(window.self!==window.top&&window.parent&&window.parent.document){
+                    const parentTheme=window.parent.document.documentElement.getAttribute("data-theme");
+                    if(parentTheme==="dark"||parentTheme==="white"){return parentTheme;}
+                    if(parentTheme==="light"){return "light";}
+                }
+            }catch(_){}
+            try{
+                const raw=localStorage.getItem(CPAMC_THEME_KEY);
+                if(raw){
+                    let theme=raw;
+                    try{
+                        const parsed=JSON.parse(raw);
+                        theme=(parsed&&parsed.state&&parsed.state.theme)||(parsed&&parsed.theme)||raw;
+                    }catch(_){}
+                    if(theme==="dark"||theme==="white"||theme==="light"){return theme;}
+                    if(theme==="auto"){return window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"white";}
+                }
+            }catch(_){}
+            return window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+        }
+        function syncCPAMCTheme(){
+            const theme=resolveCPAMCTheme();
+            if(theme==="light"){document.documentElement.removeAttribute("data-theme");}
+            else{document.documentElement.setAttribute("data-theme",theme);}
+        }
+        let activeLanguage=detectInitialLanguage();
         let providerOptions=[];
         let currentConfig={provider_scope:"all",selected_providers:[]};
         let currentResult=null;
@@ -282,7 +426,7 @@ const StatusHTML = `<!DOCTYPE html>
             const names = {"antigravity":"Antigravity","codex":"Codex","claude":"Claude","xai":"xAI","x-ai":"xAI"};
             return names[lower] || provider;
         }
-        function textFor(key){return (translations[activeLanguage]&&translations[activeLanguage][key])||translations["zh-CN"][key]||key;}
+        function textFor(key){return (translations[activeLanguage]&&translations[activeLanguage][key])||translations["en-US"][key]||translations["zh-CN"][key]||key;}
         function setMessage(value){if(value){showToast(value,"info");}}
         async function managementFetch(path, options){const response=await fetch(path,{...(options||{}),headers:{"Content-Type":"application/json",...((options&&options.headers)||{})}});const text=await response.text();if(!response.ok){throw new Error(text||response.statusText);}return text?JSON.parse(text):{};}
         function renderConfig(config){if(!config){return null;}currentConfig=config;updateConfigSummary(config);if(config.antigravity_model_group){document.getElementById("manualAntigravityModelGroupSelect").value=config.antigravity_model_group;}return config;}
@@ -357,14 +501,7 @@ const StatusHTML = `<!DOCTYPE html>
             }
             changes.forEach(function(c){
                 const row=document.createElement("div");
-                row.style.display="flex";
-                row.style.alignItems="center";
-                row.style.justifyContent="space-between";
-                row.style.background="#fff";
-                row.style.border="1px solid #f1f5f9";
-                row.style.borderRadius="8px";
-                row.style.padding="10px 14px";
-                row.style.gap="12px";
+                row.className="result-detail-row";
                 const pName=getProviderDisplayName(c.provider||"unknown");
                 const badge=document.createElement("span");
                 badge.className="badge";
@@ -413,8 +550,17 @@ const StatusHTML = `<!DOCTYPE html>
         function handleManagementError(err){const message=String(err&&err.message?err.message:err);setMessage(message);if(!document.getElementById("providerModal").hidden){showModalNotice(message,"error");}showToast(message,"error");}
         function showToast(message, type){const toast=document.createElement("div");toast.setAttribute("role","alert");const cls=type==="success"?"bg-green-100":type==="error"?"bg-red-100":type==="warning"?"bg-yellow-100":"bg-blue-100";toast.className="toast-alert "+cls;toast.textContent=message;document.getElementById("toastRoot").appendChild(toast);window.setTimeout(function(){toast.remove();},2500);}
         function showModalNotice(message, type){const box=document.getElementById("modalNotice");box.className="message-box "+(type==="error"?"error":"warn");box.textContent=message;}
-        function switchLanguage(){setLanguage(activeLanguage==="zh-CN"?"en-US":"zh-CN");}
+        function switchLanguage(){
+            const next=activeLanguage==="zh-CN"?"en-US":"zh-CN";
+            try{localStorage.setItem(QUOTA_PACER_LANGUAGE_KEY,next);}catch(_){}
+            setLanguage(next);
+        }
         function setLanguage(language){activeLanguage=language;applyLanguage();updateConfigSummary(currentConfig);updateCustomSelects();refreshProviderLocalizedControls();renderRunHistory();renderPacingTable();}
+        function syncLanguageFromHost(){
+            try{localStorage.removeItem(QUOTA_PACER_LANGUAGE_KEY);}catch(_){}
+            const next=detectInitialLanguage();
+            if(next&&next!==activeLanguage){setLanguage(next);}
+        }
         function refreshProviderLocalizedControls(){renderProviderMultiSelect("manual");renderSelectedProviderTags("manual");}
         function applyLanguage(){const messages=translations[activeLanguage];for(const element of document.querySelectorAll("[data-i18n]")){const key=element.getAttribute("data-i18n");if(messages[key]){element.textContent=messages[key];}}document.documentElement.lang=activeLanguage;document.title=messages.pageTitle||document.title;const langBtn=document.getElementById("languageMenuButton");if(langBtn){langBtn.setAttribute("aria-label",textFor("switchLanguageAria"));}const tabsNav=document.getElementById("pluginTabsNav");if(tabsNav){tabsNav.setAttribute("aria-label",textFor("pluginTabsAria"));}}
         function initCustomSelect(selectId) {
@@ -480,6 +626,17 @@ const StatusHTML = `<!DOCTYPE html>
                 cont.hidden = true;
                 cont.parentElement.classList.remove("open");
             });
+        });
+        syncCPAMCTheme();
+        try{
+            if(window.self!==window.top&&window.parent&&window.parent.document){
+                new MutationObserver(syncCPAMCTheme).observe(window.parent.document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+                new MutationObserver(syncLanguageFromHost).observe(window.parent.document.documentElement,{attributes:true,attributeFilter:["lang"]});
+            }
+        }catch(_){}
+        window.addEventListener("storage",function(e){
+            if(e.key===CPAMC_THEME_KEY){syncCPAMCTheme();}
+            if(e.key===CPAMC_LANGUAGE_KEY||e.key==="i18nextLng"){syncLanguageFromHost();}
         });
         applyLanguage();
         updateCustomSelects();

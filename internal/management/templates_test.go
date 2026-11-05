@@ -25,3 +25,19 @@ func TestStatusHTML_HeadroomTableShowsWeightAndResetCredit(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusHTML_DefaultsToEnglishAndSyncsCPAMCTheme(t *testing.T) {
+	for _, want := range []string{
+		`<html lang="en-US">`,
+		`<title>Quota Pacer</title>`,
+		`:root[data-theme="dark"]`,
+		`const CPAMC_THEME_KEY="cli-proxy-theme";`,
+		`const CPAMC_LANGUAGE_KEY="cli-proxy-language";`,
+		`function detectInitialLanguage()`,
+		`function syncCPAMCTheme()`,
+	} {
+		if !strings.Contains(StatusHTML, want) {
+			t.Errorf("status page missing locale/theme contract %q", want)
+		}
+	}
+}
