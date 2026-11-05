@@ -173,10 +173,10 @@ func registrationResult() RegisterResult {
 	return RegisterResult{
 		SchemaVersion: 1,
 		Metadata: Metadata{
-			Name:             config.PluginID,
+			Name:             "Quota Pacer",
 			Version:          config.PluginVersion,
-			Author:           "CPA Plugins",
-			GitHubRepository: "https://github.com/xg1990/quota-pacer",
+			Author:           "byvict",
+			GitHubRepository: "https://github.com/byvict/quota-pacer",
 			Description:      "Fresh evidence based credential quota-pacing management API.",
 			ConfigFields:     configFields(),
 		},

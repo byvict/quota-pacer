@@ -57,9 +57,9 @@ type managementRunner struct {
 func (r *Runtime) registerManagement() []byte {
 	result := managementRegistration{
 		Routes: []managementRoute{
-			{Method: http.MethodPost, Path: "/plugins/quota-pacer/run"},
-			{Method: http.MethodGet, Path: "/plugins/quota-pacer/diagnostics"},
-			{Method: http.MethodGet, Path: "/plugins/quota-pacer/snapshot/latest"},
+			{Method: http.MethodPost, Path: "/plugins/" + config.PluginID + "/run"},
+			{Method: http.MethodGet, Path: "/plugins/" + config.PluginID + "/diagnostics"},
+			{Method: http.MethodGet, Path: "/plugins/" + config.PluginID + "/snapshot/latest"},
 		},
 		Resources: []managementResource{
 			{Path: "/status", Menu: "Quota Pacer", Description: "Shows credential priority status and audit summary."},

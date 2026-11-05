@@ -2,13 +2,13 @@
   "schema_version": 1,
   "plugins": [
     {
-      "id": "quota-pacer",
+      "id": "quota-pacer-vb",
       "name": "Quota Pacer",
       "description": "Automatically paces Antigravity, Codex, Claude, and xAI credential priority by fresh quota evidence.",
-      "author": "xg1990",
+      "author": "byvict",
       "version": "1.0.21",
-      "repository": "https://github.com/xg1990/quota-pacer",
-      "homepage": "https://github.com/xg1990/quota-pacer",
+      "repository": "https://github.com/byvict/quota-pacer",
+      "homepage": "https://github.com/byvict/quota-pacer",
       "license": "MIT",
       "tags": ["credential", "pacing", "quota", "management", "claude"]
     }
